@@ -1,0 +1,16 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="385.714286mm"
+  height="385.714286mm"
+  viewBox="0 0 385.714286 385.714286"
+>
+  <rect x="0" y="0" width="385.714286" height="385.714286" fill="white" />
+  <rect x="42.857143" y="42.857143" width="300" height="300" fill="black" />
+  <rect x="85.714286" y="85.714286" width="42.857143" height="42.857143" fill="white" />
+  <rect x="85.714286" y="128.571429" width="42.857143" height="42.857143" fill="white" />
+  <rect x="85.714286" y="171.428571" width="42.857143" height="42.857143" fill="white" />
+  <rect x="128.571429" y="214.285714" width="42.857143" height="42.857143" fill="white" />
+  <rect x="257.142857" y="214.285714" width="42.857143" height="42.857143" fill="white" />
+  <rect x="128.571429" y="257.142857" width="42.857143" height="42.857143" fill="white" />
+  <rect x="257.142857" y="257.142857" width="42.857143" height="42.857143" fill="white" />
+</svg>

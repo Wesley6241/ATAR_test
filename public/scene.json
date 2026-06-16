@@ -1,0 +1,25 @@
+{
+  "marker": {
+    "id": 10,
+    "sizeMeters": 0.3,
+    "position": [0, 0, 0]
+  },
+  "targets": [
+    {
+      "name": "Point A",
+      "position": [2.0, 0.0, 3.0]
+    },
+    {
+      "name": "Point B",
+      "position": [4.0, 0.5, 2.0]
+    },
+    {
+      "name": "Point C",
+      "position": [1.5, 1.0, 5.0]
+    }
+  ],
+  "calibration": {
+    "focalLengthScale": 1.0,
+    "smoothingAlpha": 0.35
+  }
+}
