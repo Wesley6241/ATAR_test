@@ -1,11 +1,13 @@
 import * as THREE from 'three'
 
 const TARGET_COLORS = ['#ef4444', '#22c55e', '#3b82f6']
+const UNIT_SCALE = new THREE.Vector3(1, 1, 1)
 
 export function createARScene({ container, markerSizeMeters, targets }) {
   const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
   renderer.setClearColor(0x000000, 0)
+  renderer.xr.enabled = true
 
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 100)
@@ -57,6 +59,10 @@ export function createARScene({ container, markerSizeMeters, targets }) {
   worldRoot.visible = false
   container.appendChild(renderer.domElement)
 
+  let xrInitialCameraPose = null
+  let xrAligned = false
+  let xrEndHandler = null
+
   function resize(width, height, dpr) {
     renderer.setPixelRatio(Math.min(dpr, 2))
     renderer.setSize(width, height, false)
@@ -79,7 +85,58 @@ export function createARScene({ container, markerSizeMeters, targets }) {
   }
 
   function render() {
+    alignXRWorldIfNeeded()
     renderer.render(scene, camera)
+  }
+
+  async function startXRSession(session, initialCameraPose, onEnd) {
+    xrInitialCameraPose = {
+      position: initialCameraPose.position.clone(),
+      quaternion: initialCameraPose.quaternion.clone(),
+    }
+    xrAligned = false
+
+    if (xrEndHandler) {
+      session.removeEventListener('end', xrEndHandler)
+    }
+
+    xrEndHandler = () => {
+      renderer.setAnimationLoop(null)
+      xrInitialCameraPose = null
+      xrAligned = false
+      resetWorldTransform()
+      onEnd?.()
+    }
+
+    session.addEventListener('end', xrEndHandler)
+    await renderer.xr.setSession(session)
+    renderer.setAnimationLoop(render)
+  }
+
+  function resetWorldTransform() {
+    worldRoot.position.set(0, 0, 0)
+    worldRoot.quaternion.identity()
+  }
+
+  function alignXRWorldIfNeeded() {
+    if (!renderer.xr.isPresenting || xrAligned || !xrInitialCameraPose) {
+      return
+    }
+
+    const xrCamera = renderer.xr.getCamera(camera)
+    const initialCameraMatrix = new THREE.Matrix4().compose(
+      xrInitialCameraPose.position,
+      xrInitialCameraPose.quaternion,
+      UNIT_SCALE,
+    )
+    const worldMatrix = new THREE.Matrix4()
+      .copy(xrCamera.matrixWorld)
+      .multiply(initialCameraMatrix.clone().invert())
+    const worldScale = new THREE.Vector3()
+
+    worldMatrix.decompose(worldRoot.position, worldRoot.quaternion, worldScale)
+    worldRoot.visible = true
+    xrAligned = true
   }
 
   return {
@@ -87,8 +144,10 @@ export function createARScene({ container, markerSizeMeters, targets }) {
     markerCube,
     resize,
     render,
+    resetWorldTransform,
     setDebugHelpersVisible,
     setPose,
+    startXRSession,
     setWorldVisible,
     targetObjects,
   }

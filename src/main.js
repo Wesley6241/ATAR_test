@@ -43,12 +43,14 @@ const elements = {
   video: app.querySelector('[data-role="video"]'),
   three: app.querySelector('[data-role="three"]'),
   overlay: app.querySelector('[data-role="overlay"]'),
+  uiLayer: app.querySelector('.ui-layer'),
   debugPanel: app.querySelector('[data-role="debugPanel"]'),
   startScreen: app.querySelector('[data-role="startScreen"]'),
   startButton: app.querySelector('[data-role="startButton"]'),
 }
 
 const sceneConfig = await loadSceneConfig()
+const xrSupported = await checkXRSupport()
 const arScene = createARScene({
   container: elements.three,
   markerSizeMeters: sceneConfig.marker.sizeMeters,
@@ -61,9 +63,11 @@ const detector = createArucoDetector({
 const smoother = createPoseSmoother(sceneConfig.calibration.smoothingAlpha)
 const debugPanel = createDebugPanel(elements.debugPanel, {
   targetNames: sceneConfig.targets.map((target) => target.name),
+  onEnterAR: enterARExperience,
   onReset: handleReset,
   onFocalScaleChange: handleFocalScaleChange,
   onSmoothingChange: handleSmoothingChange,
+  xrSupported,
 })
 
 let animationFrame = 0
@@ -77,6 +81,9 @@ let framesThisWindow = 0
 let fps = 0
 let initialized = false
 let lastDistanceMeters = null
+let latestScannerPose = null
+let xrSession = null
+let xrActive = false
 
 elements.startButton.addEventListener('click', startExperience)
 window.addEventListener('resize', syncViewport)
@@ -87,6 +94,7 @@ debugPanel.update({
   fps: null,
   detected: false,
   initialized,
+  xrActive,
   status,
 })
 
@@ -94,6 +102,9 @@ async function startExperience() {
   if (stream) {
     return
   }
+
+  elements.startButton.disabled = true
+  elements.startScreen.hidden = true
 
   try {
     stream = await startVideoStream(elements.video)
@@ -103,11 +114,12 @@ async function startExperience() {
       detectionWidth: Math.min(elements.video.videoWidth, 640),
       focalLengthScale,
     })
-    elements.startScreen.hidden = true
     syncViewport()
     animationFrame = window.requestAnimationFrame(tick)
   } catch (error) {
     console.error(error)
+    elements.startScreen.hidden = false
+    elements.startButton.disabled = false
     status = 'LOST'
     debugPanel.update({
       markerId: null,
@@ -115,6 +127,7 @@ async function startExperience() {
       fps: null,
       detected: false,
       initialized,
+      xrActive,
       status,
     })
     elements.startButton.textContent = 'Camera failed'
@@ -163,6 +176,7 @@ function tick(now) {
     if (pose && pose.error < 10) {
       const cameraPose = cameraPoseFromMarkerPose(pose.rotation, pose.translationMm)
       const smoothed = smoother.update(cameraPose.cameraPosition, cameraPose.cameraQuaternion)
+      latestScannerPose = clonePose(smoothed)
       arScene.setPose(smoothed.position, smoothed.quaternion)
 
       if (!initialized) {
@@ -181,6 +195,7 @@ function tick(now) {
         fps,
         detected: true,
         initialized,
+        xrActive,
         status,
       })
     }
@@ -193,6 +208,7 @@ function tick(now) {
       fps,
       detected: false,
       initialized,
+      xrActive,
       status,
     })
   }
@@ -209,12 +225,19 @@ function syncViewport() {
 }
 
 function handleReset() {
+  if (xrSession) {
+    xrSession.end()
+    return
+  }
+
   smoother.reset()
   lastDetectionTime = 0
   lastDistanceMeters = null
+  latestScannerPose = null
   initialized = false
   status = 'SCANNING'
   arScene.setDebugHelpersVisible(true)
+  arScene.resetWorldTransform()
   arScene.setWorldVisible(false)
   debugPanel.update({
     markerId: null,
@@ -222,6 +245,7 @@ function handleReset() {
     fps,
     detected: false,
     initialized,
+    xrActive,
     status,
   })
 }
@@ -234,10 +258,107 @@ function handleSmoothingChange(nextValue) {
   smoother.setAlpha(nextValue)
 }
 
+async function enterARExperience() {
+  if (!xrSupported || !initialized || !latestScannerPose || xrSession) {
+    return
+  }
+
+  try {
+    const session = await navigator.xr.requestSession('immersive-ar', {
+      requiredFeatures: ['local'],
+      optionalFeatures: ['dom-overlay'],
+      domOverlay: { root: elements.uiLayer },
+    })
+
+    xrSession = session
+    xrActive = true
+    status = 'XR_ACTIVE'
+    debugPanel.update({
+      markerId: sceneConfig.marker.id,
+      distanceMeters: lastDistanceMeters,
+      fps,
+      detected: false,
+      initialized,
+      xrActive,
+      status,
+    })
+
+    if (animationFrame) {
+      window.cancelAnimationFrame(animationFrame)
+      animationFrame = 0
+    }
+
+    stopVideoStream(stream)
+    stream = null
+    elements.video.hidden = true
+    elements.overlay.hidden = true
+
+    await arScene.startXRSession(session, latestScannerPose, handleXRSessionEnd)
+  } catch (error) {
+    console.error(error)
+    xrSession = null
+    xrActive = false
+    status = initialized ? 'INITIALIZED' : 'LOST'
+    debugPanel.update({
+      markerId: initialized ? sceneConfig.marker.id : null,
+      distanceMeters: lastDistanceMeters,
+      fps,
+      detected: false,
+      initialized,
+      xrActive,
+      status,
+    })
+  }
+}
+
+function handleXRSessionEnd() {
+  xrSession = null
+  xrActive = false
+  lastDetectionTime = 0
+  lastDistanceMeters = null
+  smoother.reset()
+  elements.video.hidden = false
+  elements.overlay.hidden = false
+  elements.startButton.disabled = false
+  elements.startButton.textContent = 'Start camera'
+  elements.startScreen.hidden = false
+  latestScannerPose = null
+  initialized = false
+  status = 'SCANNING'
+  arScene.setDebugHelpersVisible(true)
+  arScene.setWorldVisible(false)
+  arScene.resetWorldTransform()
+  debugPanel.update({
+    markerId: null,
+    distanceMeters: null,
+    fps,
+    detected: false,
+    initialized,
+    xrActive,
+    status,
+  })
+}
+
+async function checkXRSupport() {
+  try {
+    return Boolean(navigator.xr && (await navigator.xr.isSessionSupported('immersive-ar')))
+  } catch {
+    return false
+  }
+}
+
+function clonePose(pose) {
+  return {
+    position: pose.position.clone(),
+    quaternion: pose.quaternion.clone(),
+  }
+}
+
 window.addEventListener('beforeunload', () => {
   if (animationFrame) {
     window.cancelAnimationFrame(animationFrame)
   }
 
+  xrSession?.end()
   stopVideoStream(stream)
 })

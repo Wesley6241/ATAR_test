@@ -14,7 +14,10 @@ function formatFps(value) {
   return `${value.toFixed(1)}`
 }
 
-export function createDebugPanel(root, { targetNames, onReset, onFocalScaleChange, onSmoothingChange }) {
+export function createDebugPanel(
+  root,
+  { targetNames, onReset, onEnterAR, onFocalScaleChange, onSmoothingChange, xrSupported },
+) {
   root.innerHTML = `
     <div class="status-pill" data-role="statusPill">SCANNING</div>
     <div class="debug-card">
@@ -39,7 +42,10 @@ export function createDebugPanel(root, { targetNames, onReset, onFocalScaleChang
         <output data-role="smoothingValue">0.35</output>
       </label>
 
-      <button class="reset-button" data-role="resetButton" type="button">Reset</button>
+      <div class="action-row">
+        <button class="enter-ar-button" data-role="enterArButton" type="button">Enter AR</button>
+        <button class="reset-button" data-role="resetButton" type="button">Reset</button>
+      </div>
     </div>
   `
 
@@ -51,6 +57,7 @@ export function createDebugPanel(root, { targetNames, onReset, onFocalScaleChang
     detection: root.querySelector('[data-role="detection"]'),
     anchor: root.querySelector('[data-role="anchor"]'),
     targets: root.querySelector('[data-role="targets"]'),
+    enterArButton: root.querySelector('[data-role="enterArButton"]'),
     resetButton: root.querySelector('[data-role="resetButton"]'),
     focalScale: root.querySelector('[data-role="focalScale"]'),
     focalScaleValue: root.querySelector('[data-role="focalScaleValue"]'),
@@ -59,6 +66,9 @@ export function createDebugPanel(root, { targetNames, onReset, onFocalScaleChang
   }
 
   refs.targets.textContent = targetNames.join(', ')
+  refs.enterArButton.disabled = !xrSupported
+  refs.enterArButton.textContent = xrSupported ? 'Enter AR' : 'AR Unsupported'
+  refs.enterArButton.addEventListener('click', onEnterAR)
   refs.resetButton.addEventListener('click', onReset)
   refs.focalScale.addEventListener('input', () => {
     refs.focalScaleValue.textContent = Number(refs.focalScale.value).toFixed(2)
@@ -69,12 +79,14 @@ export function createDebugPanel(root, { targetNames, onReset, onFocalScaleChang
     onSmoothingChange(Number(refs.smoothing.value))
   })
 
-  function update({ markerId, distanceMeters, fps, detected, initialized, status }) {
+  function update({ markerId, distanceMeters, fps, detected, initialized, xrActive, status }) {
     refs.markerId.textContent = markerId ?? '--'
     refs.distance.textContent = formatMeters(distanceMeters)
     refs.fps.textContent = formatFps(fps)
     refs.detection.textContent = detected ? 'Marker 10 detected' : 'Marker 10 not found'
     refs.anchor.textContent = initialized ? 'Initialized from Marker 10' : 'Waiting for Marker 10'
+    refs.enterArButton.disabled = !xrSupported || !initialized || xrActive
+    refs.enterArButton.textContent = xrSupported ? (xrActive ? 'AR Active' : 'Enter AR') : 'AR Unsupported'
     refs.statusPill.textContent = status
     refs.statusPill.dataset.state = status.toLowerCase()
   }
