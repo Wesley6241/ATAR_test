@@ -18,8 +18,11 @@ export function createARScene({ container, markerSizeMeters, targets }) {
   const worldRoot = new THREE.Group()
   scene.add(worldRoot)
 
+  const debugHelpers = new THREE.Group()
+  worldRoot.add(debugHelpers)
+
   const axesHelper = new THREE.AxesHelper(0.75)
-  worldRoot.add(axesHelper)
+  debugHelpers.add(axesHelper)
 
   const markerGeometry = new THREE.BoxGeometry(markerSizeMeters, markerSizeMeters, 0.02)
   const markerMaterial = new THREE.MeshBasicMaterial({
@@ -30,7 +33,7 @@ export function createARScene({ container, markerSizeMeters, targets }) {
   })
   const markerCube = new THREE.Mesh(markerGeometry, markerMaterial)
   markerCube.position.z = -0.01
-  worldRoot.add(markerCube)
+  debugHelpers.add(markerCube)
 
   const targetObjects = targets.map((target, index) => {
     const sphere = new THREE.Mesh(
@@ -71,6 +74,10 @@ export function createARScene({ container, markerSizeMeters, targets }) {
     worldRoot.visible = visible
   }
 
+  function setDebugHelpersVisible(visible) {
+    debugHelpers.visible = visible
+  }
+
   function render() {
     renderer.render(scene, camera)
   }
@@ -80,6 +87,7 @@ export function createARScene({ container, markerSizeMeters, targets }) {
     markerCube,
     resize,
     render,
+    setDebugHelpersVisible,
     setPose,
     setWorldVisible,
     targetObjects,

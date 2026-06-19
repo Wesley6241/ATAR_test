@@ -25,13 +25,13 @@ app.innerHTML = `
       <div class="start-card">
         <h1>Sardis AR ArUco MVP</h1>
         <p>
-          This page opens the rear camera, looks for ArUco Marker 10, and renders
-          three virtual test points in the marker's local coordinate system.
+          This page opens the rear camera, scans Marker 10 as the origin, then
+          initializes an AR view with Point A and Point B in marker coordinates.
         </p>
         <ul>
-          <li>Print Marker 10 at exactly 30 cm.</li>
-          <li>Use the rear camera in good light.</li>
-          <li>Tap start, then point the phone at the marker.</li>
+          <li>Use Marker 10 as coordinate origin.</li>
+          <li>Scan the marker once to initialize AR.</li>
+          <li>Point A is red and Point B is green.</li>
         </ul>
         <button class="start-button" data-role="startButton" type="button">Start camera</button>
       </div>
@@ -75,6 +75,8 @@ let status = 'SCANNING'
 let fpsWindowStart = performance.now()
 let framesThisWindow = 0
 let fps = 0
+let initialized = false
+let lastDistanceMeters = null
 
 elements.startButton.addEventListener('click', startExperience)
 window.addEventListener('resize', syncViewport)
@@ -84,6 +86,7 @@ debugPanel.update({
   distanceMeters: null,
   fps: null,
   detected: false,
+  initialized,
   status,
 })
 
@@ -111,6 +114,7 @@ async function startExperience() {
       distanceMeters: null,
       fps: null,
       detected: false,
+      initialized,
       status,
     })
     elements.startButton.textContent = 'Camera failed'
@@ -161,24 +165,34 @@ function tick(now) {
       const smoothed = smoother.update(cameraPose.cameraPosition, cameraPose.cameraQuaternion)
       arScene.setPose(smoothed.position, smoothed.quaternion)
 
+      if (!initialized) {
+        initialized = true
+        status = 'INITIALIZED'
+        arScene.setDebugHelpersVisible(false)
+      } else {
+        status = 'ACTIVE'
+      }
+
       lastDetectionTime = now
-      status = 'LOCKED'
+      lastDistanceMeters = cameraPose.distanceMeters
       debugPanel.update({
         markerId: detection.marker.id,
         distanceMeters: cameraPose.distanceMeters,
         fps,
         detected: true,
+        initialized,
         status,
       })
     }
   } else if (now - lastDetectionTime > 250) {
-    status = lastDetectionTime ? 'LOST' : 'SCANNING'
-    arScene.setWorldVisible(false)
+    status = initialized ? 'LOST' : 'SCANNING'
+    arScene.setWorldVisible(initialized)
     debugPanel.update({
-      markerId: null,
-      distanceMeters: null,
+      markerId: initialized ? sceneConfig.marker.id : null,
+      distanceMeters: initialized ? lastDistanceMeters : null,
       fps,
       detected: false,
+      initialized,
       status,
     })
   }
@@ -197,13 +211,17 @@ function syncViewport() {
 function handleReset() {
   smoother.reset()
   lastDetectionTime = 0
+  lastDistanceMeters = null
+  initialized = false
   status = 'SCANNING'
+  arScene.setDebugHelpersVisible(true)
   arScene.setWorldVisible(false)
   debugPanel.update({
     markerId: null,
     distanceMeters: null,
     fps,
     detected: false,
+    initialized,
     status,
   })
 }

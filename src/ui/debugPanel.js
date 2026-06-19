@@ -23,6 +23,7 @@ export function createDebugPanel(root, { targetNames, onReset, onFocalScaleChang
         <div><span class="debug-label">Distance</span><strong data-role="distance">--</strong></div>
         <div><span class="debug-label">FPS</span><strong data-role="fps">--</strong></div>
         <div><span class="debug-label">Detection</span><strong data-role="detection">Waiting</strong></div>
+        <div><span class="debug-label">Anchor</span><strong data-role="anchor">Not initialized</strong></div>
         <div class="debug-wide"><span class="debug-label">Targets</span><strong data-role="targets"></strong></div>
       </div>
 
@@ -48,6 +49,7 @@ export function createDebugPanel(root, { targetNames, onReset, onFocalScaleChang
     distance: root.querySelector('[data-role="distance"]'),
     fps: root.querySelector('[data-role="fps"]'),
     detection: root.querySelector('[data-role="detection"]'),
+    anchor: root.querySelector('[data-role="anchor"]'),
     targets: root.querySelector('[data-role="targets"]'),
     resetButton: root.querySelector('[data-role="resetButton"]'),
     focalScale: root.querySelector('[data-role="focalScale"]'),
@@ -67,11 +69,12 @@ export function createDebugPanel(root, { targetNames, onReset, onFocalScaleChang
     onSmoothingChange(Number(refs.smoothing.value))
   })
 
-  function update({ markerId, distanceMeters, fps, detected, status }) {
+  function update({ markerId, distanceMeters, fps, detected, initialized, status }) {
     refs.markerId.textContent = markerId ?? '--'
     refs.distance.textContent = formatMeters(distanceMeters)
     refs.fps.textContent = formatFps(fps)
     refs.detection.textContent = detected ? 'Marker 10 detected' : 'Marker 10 not found'
+    refs.anchor.textContent = initialized ? 'Initialized from Marker 10' : 'Waiting for Marker 10'
     refs.statusPill.textContent = status
     refs.statusPill.dataset.state = status.toLowerCase()
   }
